@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,20 +37,14 @@ var mainMenuKeyboard = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButton("Информация"),
 		tgbotapi.NewKeyboardButton("Саппорт"),
 	),
-
-
 )
 
-var marketplaceMenu = tgbotapi.NewReplyKeyboard(
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Продать моменты"),
-		tgbotapi.NewKeyboardButton("Купить моменты"),
+var marketplaceMenu = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Купить машину", "buy cars"),
 	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Мои моменты на продаже"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Назад"),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Мои машины на продаже", "my cars on sales"),
 	),
 )
 
@@ -85,19 +80,19 @@ var supportMenu = tgbotapi.NewInlineKeyboardMarkup(
 
 var buyCar = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Common машина - 5$", "buyCommonCar"),
+		tgbotapi.NewInlineKeyboardButtonData("Common машина - 5 RRTC", "buyCommonCar"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Uncommon машина - 10$", "buyUncommonCar"),
+		tgbotapi.NewInlineKeyboardButtonData("Uncommon машина - 10 RRTC", "buyUncommonCar"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Rare машина - 50$", "buyRareCar"),
+		tgbotapi.NewInlineKeyboardButtonData("Rare машина - 50 RRTC", "buyRareCar"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Epic машина - 100$", "buyEpicCar"),
+		tgbotapi.NewInlineKeyboardButtonData("Epic машина - 100 RRTC", "buyEpicCar"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Legendary машина - 500$", "buyLegendCar"),
+		tgbotapi.NewInlineKeyboardButtonData("Legendary машина - 500 RRTC", "buyLegendCar"),
 	),
 )
 
@@ -133,6 +128,7 @@ var garage = []car{
 	//	expiredData: "04.03.2022",
 	//},
 }
+var marketplace = []carSale{}
 
 type car struct {
 	name        string
@@ -145,10 +141,16 @@ type car struct {
 	owner       user
 }
 
+type carSale struct {
+	salingCar car
+	price     string
+}
+
 type user struct {
 	username      string
 	hash          string
 	walletAddress string
+	walletSeed    string
 	balance       string
 }
 
@@ -179,6 +181,8 @@ var carPageTemplate = `
             <p>Аэродинамика: %d</p>
             <p>Прижимная сила: %d</p>
             <p>Срок действия до %s</p>`
+var inputSalePrice = false
+var usingCar car
 
 func main() {
 	telegraph.Verbose = true
@@ -285,14 +289,31 @@ func main() {
 			var accountInfo = tgbotapi.NewInlineKeyboardMarkup(
 				tgbotapi.NewInlineKeyboardRow(
 					tgbotapi.NewInlineKeyboardButtonData("Подключить кошелёк", "input wallet"),
+				),
+				tgbotapi.NewInlineKeyboardRow(
 					tgbotapi.NewInlineKeyboardButtonData("Гараж", "garage"),
-					tgbotapi.NewInlineKeyboardButtonData("Как продать момент", "how to sell moment"),
-					tgbotapi.NewInlineKeyboardButtonData("Как купить момент на маркетплейсе", "how to buy moment"),
 				),
 			)
 
 			msg := tgbotapi.NewMessage(ChatId, "Добро пожаловать в NFT игру Royal Races")
-
+			if inputSalePrice == true {
+				var value, err = strconv.Atoi(update.Message.Text)
+				if err != nil {
+					msg.Text = "Некорректный ввод цены"
+				} else {
+					marketplace = append(marketplace, carSale{
+						salingCar: usingCar,
+						price:     strconv.Itoa(value),
+					})
+					for i, v := range garage {
+						if v.name == usingCar.name {
+							garage = append(garage[:i], garage[i+1:]...)
+						}
+					}
+					msg.Text = fmt.Sprintf(`%s выставлена за %d RRCT`, usingCar.name, value)
+				}
+				inputSalePrice = false
+			}
 			if Command == "start" {
 				msg.ReplyMarkup = mainMenuKeyboard
 			}
@@ -306,7 +327,12 @@ func main() {
 				msg.Text = "Выбирите редкость покупаемой машины"
 				msg.ReplyMarkup = buyCar
 			case "Мой аккаунт":
-				msg.Text = "Водитель: @" + update.Message.Chat.UserName
+				var usr = getUserIndex(update.Message.Chat.UserName)
+				var msgText = fmt.Sprintf(`Водитель: @%s\n
+	Адресс кошелька: %s\n
+	Баланс: %s RRTC
+`, users[usr].username, users[usr].walletAddress, users[usr].balance)
+				msg.Text = msgText
 				msg.ReplyMarkup = accountInfo
 			case "Саппорт":
 				msg.Text = "Наша поддержка ответит на все вопросы, но перед этим прочтите раздел <<Информация>>"
@@ -314,7 +340,8 @@ func main() {
 			case "Гонка":
 				msg.Text = "Информация о NFT BOX"
 			case "Маркетплейс":
-				msg.Text = "Информация о NFT BOX"
+				msg.Text = "На маркетплейсы вы можете купить NFT-машины от других игроков"
+				msg.ReplyMarkup = marketplaceMenu
 			}
 			if _, err := bot.Send(msg); err != nil {
 				log.Panic(err)
@@ -326,13 +353,46 @@ func main() {
 			}
 
 			msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Data)
+
 			for _, car := range garage {
 				if "show car "+car.name == msg.Text {
 					var carPage = fmt.Sprintf(carPageTemplate, car.name, car.owner.username, car.image, car.rarity, car.power, car.ergo, car.downforce, car.expiredData)
 					page, err := client.CreatePageWithHTML("Машина: "+car.name, "Royal Races", "", carPage, true)
 					if err == nil {
-						msg.Text =  page.URL
+						var msgText = fmt.Sprintf(`%s \nНазвание: %s<br/>Редкость:%sСтаты: \n Мощность - %d\n Аэродинамика - %d,\n Прижимная сила - %d`, page.URL, car.name, car.rarity, car.power, car.ergo, car.downforce)
+						msg.Text = msgText
+						var carAction = tgbotapi.NewInlineKeyboardMarkup(
+							tgbotapi.NewInlineKeyboardRow(
+								tgbotapi.NewInlineKeyboardButtonData("Выставить машину на маркетплейс", "sell car "+car.name)),
+							tgbotapi.NewInlineKeyboardRow(
+								tgbotapi.NewInlineKeyboardButtonData("Улучшить машину", "upgrade car "+car.name)),
+						)
+						msg.ReplyMarkup = carAction
 					}
+				} else if "sell car "+car.name == msg.Text {
+					usingCar = car
+					inputSalePrice = true
+					msg.Text = "Введите цену продажи"
+				} else if "upgrade car "+car.name == msg.Text {
+
+				}
+			}
+			var usr = getUserIndex(update.Message.Chat.UserName)
+			for _, saleCar := range marketplace {
+				if "buy market "+saleCar.salingCar.name == msg.Text {
+					var msgText = fmt.Sprintf("Название: %s  \nРедкость:%s  \nСтаты: \nМощность - %d\nАэродинамика - %d\n Прижимная сила - %d\n,Цена:%s", saleCar.salingCar.name, saleCar.salingCar.rarity, saleCar.salingCar.power, saleCar.salingCar.ergo, saleCar.salingCar.downforce, saleCar.price)
+					msg.Text = msgText
+					var carAction = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData("Выставить машину на маркетплейс", "buy marketcar "+saleCar.salingCar.name)),
+					)
+					msg.ReplyMarkup = carAction
+
+				} else if "buy marketcar "+saleCar.salingCar.name == msg.Text {
+					var usr = getUserIndex(update.Message.Chat.UserName)
+					users[usr].
+						msg.Text = "Введите цену продажи"
+				} else if "upgrade car "+car.name == msg.Text {
 
 				}
 			}
@@ -384,7 +444,6 @@ func main() {
 				} else {
 					msg.Text = "Пользователь не найден, обратитесь в поддержку"
 				}
-
 			case "buyUncommonCar":
 				usr := getUserIndex(update.CallbackQuery.Message.Chat.UserName)
 				if usr != -1 {
@@ -527,15 +586,33 @@ func main() {
 					var carGarageQuery = tgbotapi.NewInlineKeyboardMarkup(
 						garageCarArray...,
 					)
+
 					msg.Text = "Выбирете машину для просмотра"
+
 					msg.ReplyMarkup = carGarageQuery
 
 				}
+			case "buy cars":
+				var buyCarsArray = [][]tgbotapi.InlineKeyboardButton{}
+				for _, saleCar := range marketplace {
+					if saleCar.salingCar.owner.username == update.CallbackQuery.Message.Chat.UserName {
+						var carBtn = tgbotapi.NewInlineKeyboardButtonData("Машина: "+saleCar.salingCar.name, "buy market "+saleCar.salingCar.name)
+						var carGroupBtn []tgbotapi.InlineKeyboardButton
+						carGroupBtn = append(carGroupBtn, carBtn)
+						buyCarsArray = append(buyCarsArray, carGroupBtn)
+						log.Print("Error create car page")
+					}
+				}
+			}
+			var phrases = strings.Split(msg.Text, " ")
+			if len(phrases) > 2 && phrases[0] == "sell" && phrases[1] == "car" {
+				break
+			} else {
+				if _, err := bot.Send(msg); err != nil {
+					panic(err)
+				}
 			}
 
-			if _, err := bot.Send(msg); err != nil {
-				panic(err)
-			}
 		} else {
 			continue
 		}
