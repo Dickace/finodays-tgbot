@@ -342,7 +342,7 @@ func game(bot tgbotapi.BotAPI) {
 func main() {
 	telegraph.Verbose = true
 
-	content, err := ioutil.ReadFile("./config.json")
+	content, err := ioutil.ReadFile("../config.json")
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -351,12 +351,12 @@ func main() {
 	if err != nil {
 		fmt.Print(err)
 	}
-	bot, err := tgbotapi.NewBotAPI(config.telegramBotApiToken)
+	bot, err := tgbotapi.NewBotAPI("5061864092:AAFkaxtv-zwDKyPv5xL9bW0PtPjPdo0helM")
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if client, err = telegraph.Load(config.telegramBotApiToken); err == nil {
+	if client, err = telegraph.Load("5061864092:AAFkaxtv-zwDKyPv5xL9bW0PtPjPdo0helM"); err == nil {
 		log.Printf("> Created client: %#+v", client)
 
 		config.telegramBotApiToken = client.AccessToken
