@@ -653,7 +653,7 @@ func main() {
 						msg.Text = fmt.Sprintf("Вы куплили %s, проверьте её в гараже", sellsCar.name)
 						msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 							tgbotapi.NewInlineKeyboardRow(
-								tgbotapi.NewInlineKeyboardButtonData("В маркетплейс", "buy car"),
+								tgbotapi.NewInlineKeyboardButtonData("В маркетплейс", "marketplaceMenu"),
 							),
 							tgbotapi.NewInlineKeyboardRow(
 								tgbotapi.NewInlineKeyboardButtonData("В гараж", "garage"),
