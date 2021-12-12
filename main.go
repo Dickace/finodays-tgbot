@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	telegraph "github.com/meinside/telegraph-go"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"strconv"
@@ -13,14 +11,11 @@ import (
 	"time"
 )
 
-type Config struct {
-	telegramBotApiToken string
-}
-
+//
 //var html = `<h3 >Машина %s водителя %s</h3>
-//    <img style="width: 70%%; " src="https://i.imgur.com/IekblLL.png"/>
-//    <p>Редкость: <span style="color:#1E90FF;">%s</span></p>
-//            <p>Мощность мотора: %d<br/>
+//   <img style="width: 70%%; " src="https://i.imgur.com/IekblLL.png"/>
+//   <p>Редкость: <span style="color:#1E90FF;">%s</span></p>
+//           <p>Мощность мотора: %d<br/>
 //Аэродинамика: %d<br/>
 //Прижимная сила: %d<br/>
 //Срок действия до %s<br/>
@@ -341,25 +336,17 @@ func game(bot tgbotapi.BotAPI) {
 
 func main() {
 	telegraph.Verbose = true
+	var savedAccessToken string = "da18049281110a4ee0a1cd473adfb8d36ce0fdc95fa8dd17d8dea38994d6"
 
-	content, err := ioutil.ReadFile("./config.json")
-	if err != nil {
-		fmt.Print(err)
-	}
-	var config Config
-	err = json.Unmarshal(content, &config)
-	if err != nil {
-		fmt.Print(err)
-	}
-	bot, err := tgbotapi.NewBotAPI(config.telegramBotApiToken)
+	bot, err := tgbotapi.NewBotAPI("5061864092:AAFkaxtv-zwDKyPv5xL9bW0PtPjPdo0helM")
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if client, err = telegraph.Load(config.telegramBotApiToken); err == nil {
+	if client, err = telegraph.Load(savedAccessToken); err == nil {
 		log.Printf("> Created client: %#+v", client)
 
-		config.telegramBotApiToken = client.AccessToken
+		savedAccessToken = client.AccessToken
 
 		if account, err := client.GetAccountInfo(nil); err == nil {
 			log.Printf("> GetAccountInfo result: %#+v", account)
@@ -666,7 +653,7 @@ func main() {
 						msg.Text = fmt.Sprintf("Вы куплили %s, проверьте её в гараже", sellsCar.name)
 						msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 							tgbotapi.NewInlineKeyboardRow(
-								tgbotapi.NewInlineKeyboardButtonData("В маркетплейс", "marketplaceMenu"),
+								tgbotapi.NewInlineKeyboardButtonData("В маркетплейс", "buy car"),
 							),
 							tgbotapi.NewInlineKeyboardRow(
 								tgbotapi.NewInlineKeyboardButtonData("В гараж", "garage"),
@@ -1145,7 +1132,7 @@ func main() {
 						tgbotapi.NewInlineKeyboardButtonData("В магазин машин", "buyCar"),
 					),
 					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("В маркеталейс", "marketplaceMenu"),
+						tgbotapi.NewInlineKeyboardButtonData("На маркеталейс", "buy cars"),
 					),
 				)
 
