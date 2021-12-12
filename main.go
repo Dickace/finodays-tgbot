@@ -22,13 +22,20 @@ import (
 //</p>
 //
 //`
-
+var raceTypeChoise = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Авто гонка", "autorace"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Управлять машиной", "game"),
+	),
+)
 var raceChoise = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Один забирает всё", "one winner"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Гонка на интерес", "training"),
+		tgbotapi.NewInlineKeyboardButtonData("Тестовая гонка", "training"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Рейтинговая гонка", "rating race"),
@@ -272,19 +279,22 @@ func game(bot tgbotapi.BotAPI) {
 						trainingLobbys[ti] = trainingLobby
 						var wins []car
 						for count := 0; count < len(trainingLobby.cars); count++ {
-							var statArray []int
+							fmt.Println(count)
+							var statArray = []int{}
 							var statSum = 0
-							var chansDyn []float64
+							var chansDyn = []float64{}
 							for _, crs := range trainingLobby.cars {
 								var carFind = false
 								for _, wincar := range wins {
-									if wincar.name != crs.name {
+									if wincar.name == crs.name {
 										carFind = true
 									}
 								}
 								if !carFind {
 									statArray = append(statArray, crs.power+crs.ergo+crs.downforce)
 									statSum += crs.power + crs.ergo + crs.downforce
+								} else {
+									statArray = append(statArray, 0.0)
 								}
 							}
 							for _, stat := range statArray {
@@ -297,8 +307,12 @@ func game(bot tgbotapi.BotAPI) {
 							var winnerTicket = rand.Float64() * 100
 							var sumTotal = 0.0
 							for j, chanse := range chansDyn {
+								fmt.Println(chansDyn)
+								fmt.Println(winnerTicket)
 								if sumTotal < winnerTicket && winnerTicket < sumTotal+chanse {
+
 									wins = append(wins, trainingLobby.cars[j])
+									fmt.Println(wins)
 									break
 								} else {
 									sumTotal += chanse
@@ -307,14 +321,12 @@ func game(bot tgbotapi.BotAPI) {
 						}
 						var msgText = fmt.Sprintf("Тренировочная гонка №%s закончилась\nРезультаты следующие:\n", trainingLobby.gameId)
 						for p, win := range wins {
-							var str = fmt.Sprintf("%d место - @%s, на машине %s", p+1, win.owner.username, win.name)
+							var str = fmt.Sprintf("%d место - @%s, на машине %s\n", p+1, win.owner.username, win.name)
 							trainingLobby.result = append(trainingLobby.result, str)
-							msgText += str
+							msgText = msgText + str
 						}
 						trainingLobby.isOver = true
-						for _, crs := range trainingLobby.cars {
-							crs.isBusy = false
-						}
+						fmt.Println(wins)
 						for _, usr := range trainingLobby.players {
 							var msg = tgbotapi.NewMessage(usr.chatId, msgText)
 							_, err := bot.Send(msg)
@@ -322,10 +334,16 @@ func game(bot tgbotapi.BotAPI) {
 								fmt.Print(err)
 							}
 						}
+						for i, crs := range garage {
+							for _, cr := range trainingLobby.cars {
+								if crs.name == cr.name {
+									garage[i].isBusy = false
+								}
+							}
+						}
 						trainingLobbys[ti] = trainingLobby
 					}
 				}
-
 			case <-quit:
 				ticker.Stop()
 				return
@@ -377,7 +395,6 @@ func main() {
 
 	for update := range updates {
 		if update.Message != nil {
-			UserName := update.Message.From.UserName
 			ChatId := update.Message.Chat.ID
 			Text := update.Message.Text
 			Command := update.Message.Command()
@@ -389,7 +406,6 @@ func main() {
 				}
 			}
 			if !userFind {
-				log.Print(update.Message.Chat.UserName)
 				var usr = user{
 					username:       update.Message.Chat.UserName,
 					hash:           "",
@@ -415,7 +431,6 @@ func main() {
 
 			}
 			if len(update.Message.NewChatMembers) != 0 {
-				log.Print(update.Message.NewChatMembers)
 				for _, v := range update.Message.NewChatMembers {
 					var usr = user{
 						username:      v.UserName,
@@ -440,13 +455,12 @@ func main() {
 
 			}
 
-			log.Printf("[%s] %d %s", UserName, ChatId, Text)
-
 			msg := tgbotapi.NewMessage(ChatId, "Добро пожаловать в NFT игру Royal Races")
+
 			var usr = getUserIndex(update.Message.Chat.UserName)
 			if users[usr].inputSalePrice == true {
 				var value, err = strconv.Atoi(update.Message.Text)
-				if err != nil {
+				if err != nil || value < 1 {
 					msg.Text = "Некорректный ввод цены"
 				} else {
 					var salecar car
@@ -477,19 +491,19 @@ func main() {
 				msg.ReplyMarkup = infoMenu
 
 			case "Купить машину":
-				msg.Text = "Выбирите редкость покупаемой машины"
+				msg.Text = "Выберите редкость покупаемой машины"
 				msg.ReplyMarkup = buyCar
 			case "Мой аккаунт":
 				var usr = getUserIndex(update.Message.Chat.UserName)
 				if users[usr].walletAddress != "" {
-					var msgText = fmt.Sprintf("Водитель: @%s\nАдресс кошелька: %s\nБаланс: %s RRTC", users[usr].username, users[usr].walletAddress, users[usr].balance)
+					var msgText = fmt.Sprintf("Водитель: @%s\nАдрес кошелька: %s\nБаланс: %s RRTC", users[usr].username, users[usr].walletAddress, users[usr].balance)
 					msg.Text = msgText
 					msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("Пополнить баланс", "payment"),
 						),
 						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData("Подключить кошельек", "payment"),
+							tgbotapi.NewInlineKeyboardButtonData("Подключить кошелек", "changeWallet"),
 						),
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("Гараж", "garage"),
@@ -503,7 +517,7 @@ func main() {
 							tgbotapi.NewInlineKeyboardButtonData("Пополнить баланс", "payment"),
 						),
 						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData("Изменить адресс кошелька", "payment"),
+							tgbotapi.NewInlineKeyboardButtonData("Изменить адрес кошелька", "changeWallet"),
 						),
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("Гараж", "garage"),
@@ -515,8 +529,8 @@ func main() {
 				msg.Text = "Наша поддержка ответит на все вопросы, но перед этим прочтите раздел <<Информация>>"
 				msg.ReplyMarkup = supportMenu
 			case "Гонка":
-				msg.Text = "Выбирите гонку в которой хотите участвовать"
-				msg.ReplyMarkup = raceChoise
+				msg.Text = "Выберите тип гонки в которой хотите участвовать"
+				msg.ReplyMarkup = raceTypeChoise
 			case "Маркетплейс":
 				msg.Text = "На маркетплейсы вы можете купить NFT-машины от других игроков"
 				msg.ReplyMarkup = marketplaceMenu
@@ -531,7 +545,6 @@ func main() {
 			}
 
 			msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Data)
-
 			for ti, trainLobby := range trainingLobbys {
 
 				if "check lobby "+trainLobby.gameId == msg.Text {
@@ -642,6 +655,7 @@ func main() {
 							downforce:   saleCar.salingCar.downforce,
 							expiredData: saleCar.salingCar.expiredData,
 							isBusy:      saleCar.salingCar.isBusy,
+							image:       saleCar.salingCar.image,
 						}
 						garage = append(garage, sellsCar)
 						for i, v := range marketplace {
@@ -664,7 +678,7 @@ func main() {
 					}
 
 				} else if "upgrade car "+saleCar.salingCar.name == msg.Text {
-
+					msg.Text = "Эта функция пока недоступна"
 				} else if "show market "+saleCar.salingCar.name == msg.Text {
 					var msgText = fmt.Sprintf("<a href='%s'>%s</a>\nРедкость:%s\nСтаты: \nМощность - %d\nАэродинамика - %d,\nПрижимная сила - %d\nЦена:%s RRCT", saleCar.salingCar.image, saleCar.salingCar.name, saleCar.salingCar.rarity, saleCar.salingCar.power, saleCar.salingCar.ergo, saleCar.salingCar.downforce, saleCar.price)
 					msg.Text = msgText
@@ -702,7 +716,7 @@ func main() {
 			case "invalid car":
 				msg.Text = "Одной из ключевых особенностей этой игры является срок службы кузова, после истечения которого, машина не сможет участвовать в гонке, а сможет пойти только на детали"
 			case "upgrade car":
-				msg.Text = "В разделе <<Мой аккаунт>> выбать пункт Гараж, там выбрать машину, которую вы хотите улучшить и далее выбираете машину <<донор>>, которая уничтожится.\nТакже надо будет заплатить механикам за улучшение машины. Не забудте про правило улучшения: в зависимости от редкости машины апгрейд работает по разному"
+				msg.Text = "В разделе <<Мой аккаунт>> выбать пункт Гараж, там выбрать машину, которую вы хотите улучшить и далее выберите машину <<донор>>, которая уничтожится.\nТакже надо будет заплатить механикам за улучшение машины. Не забудте про правило улучшения: в зависимости от редкости машины апгрейд работает по разному"
 			case "buyCommonCar":
 				usr := getUserIndex(update.CallbackQuery.Message.Chat.UserName)
 				if usr != -1 {
@@ -908,7 +922,7 @@ func main() {
 						var carGarageQuery = tgbotapi.NewInlineKeyboardMarkup(
 							garageCarArray...,
 						)
-						msg.Text = "Выбирете машину для просмотра"
+						msg.Text = "Выберите машину для просмотра"
 						msg.ReplyMarkup = carGarageQuery
 					} else {
 						msg.Text = "В вашем гараже нет машин"
@@ -948,7 +962,7 @@ func main() {
 					msg.Text = "Ни одна моя машина не выставлена"
 				}
 			case "training":
-				msg.Text = "Тренировочная гонка до 4 учстников, которые играют на интерес. Нет ни ставок, ни рейтинга"
+				msg.Text = "Тренировочная гонка до 4 участников, которые хотят попробовать погоняться. Нет ни ставок, ни рейтинга"
 				var usr = getUserIndex(update.CallbackQuery.Message.Chat.UserName)
 				if users[usr].carForRace != "" {
 					msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
@@ -994,11 +1008,14 @@ func main() {
 					var carGarageQuery = tgbotapi.NewInlineKeyboardMarkup(
 						garageCarArray...,
 					)
-					msg.Text = "Выбирете машину для участия в тренировке"
+					msg.Text = "Выберите машину для участия в тренировке"
 					msg.ReplyMarkup = carGarageQuery
 				} else {
 					msg.Text = "В вашем гараже нет машин"
 				}
+			case "autorace":
+				msg.Text = "Выберите режим гонки"
+				msg.ReplyMarkup = raceChoise
 			case "last training game":
 				var lobbyArray = [][]tgbotapi.InlineKeyboardButton{}
 				for _, lobby := range trainingLobbys {
@@ -1085,7 +1102,7 @@ func main() {
 								isOver:     false,
 								players:    []user{users[usr]},
 								cars:       []car{garage[cr]},
-								maxPlayers: 4,
+								maxPlayers: 3,
 							})
 							garage[cr].isBusy = true
 							msg.Text = "Игра найдена - игроков в лобби " + strconv.Itoa(len(trainingLobbys[newGameId-1].players)) + "/" + strconv.Itoa(trainingLobbys[newGameId-1].maxPlayers)
@@ -1099,7 +1116,7 @@ func main() {
 								isOver:     false,
 								players:    []user{users[usr]},
 								cars:       []car{garage[cr]},
-								maxPlayers: 4},
+								maxPlayers: 3},
 						}
 						garage[cr].isBusy = true
 						msg.Text = "Игра найдена - игроков в лобби " + strconv.Itoa(len(trainingLobbys[0].players)) + "/" + strconv.Itoa(trainingLobbys[0].maxPlayers)
@@ -1119,6 +1136,14 @@ func main() {
 					tgbotapi.NewInlineKeyboardRow(
 						tgbotapi.NewInlineKeyboardButtonData("Получить 1000 RRCT", "bonus"),
 					))
+			case "changeWallet":
+				msg.Text = "Эта функция пока недоступна"
+			case "one winner":
+				msg.Text = "Эта функция пока недоступна"
+			case "rating race":
+				msg.Text = "Эта функция пока недоступна"
+			case "game":
+				msg.Text = "Эта функция пока недоступна"
 			case "bonus":
 				var usr = getUserIndex(update.CallbackQuery.Message.Chat.UserName)
 				oldBalance, err := strconv.Atoi(users[usr].balance)
@@ -1129,13 +1154,9 @@ func main() {
 				msg.Text = "Ваши 1000 RRCT уже на вашем балансе, удачных гонок!"
 				msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("В магазин машин", "buyCar"),
-					),
-					tgbotapi.NewInlineKeyboardRow(
 						tgbotapi.NewInlineKeyboardButtonData("На маркеталейс", "buy cars"),
 					),
 				)
-
 			}
 
 			var phrases = strings.Split(msg.Text, " ")
